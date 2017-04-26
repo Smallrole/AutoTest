@@ -1,0 +1,229 @@
+*** Settings ***
+Library           PublicLibrary
+Library           RequestsLibrary
+Library           DatabaseLibrary
+Library           Collections
+Library           OperatingSystem
+
+*** Variables ***
+
+*** Keywords ***
+资源初始化
+    [Arguments]    ${model}    ${level}    ${hosts}    ${db_parameter}    #model 支持：interface \ function
+    log    ********开始资源初始化********\n
+    Set Log Level    ${level}    #设置日志级别
+    Set Global Variable    ${host_name}    ${hosts}
+    ${test_case_path}    Run Keyword If    '${model}'=='interface'    Join Path    ${CURDIR}    interface.xlsx
+    ...    ELSE IF    '${model}'=='function'    Join Path    ${CURDIR}    function.xlsx
+    ...    ELSE    fail    模式不正确，请如是接口用例${modle}值请填写interface,如果是功能用例${modle}值则填写funtion
+    Set Global Variable    ${test_case_table}    ${test_case_path}
+    ${openfile}    open_table    ${test_case_table}    #打开用例表格
+    Run Keyword If    '${model}'=='interface'    get_all_mered_calls    ${openfile}    interface
+    ...    ELSE IF    '${model}'=='function'    get_all_mered_calls    ${openfile}    data    #获取测试用例的合并单元格
+    Run Keyword If    '${model}'=='function'    get_all_mered_calls    ${openfile}    function    #获取功能组的所有合并单元位置
+    Set Global Variable    ${global_cache}    {}    #设置全局参数缓存
+    Set Global Variable    ${test_case_table}    ${openfile}    #增加测试用例修改时候的判断
+    Set Global Variable    ${db_basic_connet}    &{EMPTY}    #用于保存数据库连接对象
+    Set Global Variable    @{all_host_api}    @{EMPTY}    #用于保存所有主机对象
+    连接数据库初始化    ${db_parameter}    #创建所有的数据库长连接
+    log    ********资源初始化结束********\n
+
+资源释放
+    log    ********开始释放所有资源********\n
+    Delete All Sessions    #删除所有sessions
+    @{all_user}    Get Dictionary Values    ${db_basic_connet}
+    : FOR    ${key_name}    IN    @{all_user}
+    \    Change Current Dbconnection    ${key_name}
+    \    Disconnect From Database    #断开数据库的连接
+    log    ********释放资源结束********\n
+
+读取测试用例
+    [Arguments]    ${row_num}
+    log    ********开始读取测试用例数据********\n
+    @{test_case_date}    Get Test Case Data    ${test_case_table}    interface    ${row_num}
+    log    ********读取测试用例数据结束********\n
+    [Return]    @{test_case_date}
+
+HTTP请求
+    [Arguments]    ${hostname}    ${uri}    ${method}    ${head}    ${body}
+    [Timeout]    16 seconds
+    log    ********开始Http请求********\n
+    @{get_api_result}    获取API    ${hostname}    ${uri}
+    log many    主机名称：@{get_api_result}[0]    地址：@{get_api_result}[1]    方法：${method}    请求参数：${body}
+    ${temporary_data}    Set Variable    ${body}    #用于保存去空格的数据
+    ${find_result}    evaluate    '''${temporary_data}'''.replace(' ', '').find('open(')    #检查是否为上送图片数据
+    ${headinfo}    Run Keyword If    '${find_result}' =='-1'    to json    ${head}
+    ${bodydata}    Run Keyword If    '${find_result}' =='-1'    to json    ${body}
+    ...    ELSE    evaluate    ${body}
+    ${method}    Evaluate    '${method}'.lower()
+    ${result}    Run Keyword If    '${method}' == 'post' and '${find_result}' =='-1'    Post Request    @{get_api_result}[0]    @{get_api_result}[1]    ${bodydata}
+    ...    headers=${headinfo}    timeout=15
+    ...    ELSE IF    '${method}' == 'post' and '${find_result}' !='-1'    Post Request    @{get_api_result}[0]    @{get_api_result}[1]    files=${bodydata}
+    ...    timeout=15
+    ...    ELSE IF    '${method}' == 'get'    get request    @{get_api_result}[0]    @{get_api_result}[1]    params=${bodydata}
+    ...    headers=${headinfo}    timeout=15
+    ...    ELSE    fail    不支持的请求方法
+    log    ********Http请求结束********\n
+    [Return]    ${result}
+
+分析响应结果
+    [Arguments]    ${response_data}    # 响应结果的对象
+    [Timeout]    1 second
+    log    ********开始打印Http的响应数据********\n
+    should be equal as strings    ${response_data.status_code}    200    #判断响应状态码
+    &{real_response_data_content}    to json    ${response_data.content}
+    log many    请求URL：${response_data.url}    响应状态码：${response_data.status_code}    响应时间（微秒）：${response_data.elapsed.microseconds}    响应的cookies:${response_data.cookies}    响应内容如下:
+    Log Dictionary    ${real_response_data_content}
+    log    ********打印Http的响应数据结束********\n
+
+响应数据分析
+    [Arguments]    ${way}    ${Realtimedata}    ${expecteddata}
+    ${expecteddata}    to json    ${expecteddata}
+    ${Realtimedata}    to json    ${Realtimedata}
+    log    ********开始对比响应结果********\n
+    @{result}    Run Keyword If    '${way}' =='Contain'    cmp_json    ${Realtimedata}    ${expecteddata}
+    ...    ELSE IF    '${way}' =='AssertEqual'    Should Be Equal    ${Realtimedata}    ${expecteddata}
+    ...    ELSE IF    '${way}' =='AssertNotEqual'    Should Not Be Equal    ${Realtimedata}    ${expecteddata}
+    ...    ELSE    Fail    断言方式不正确，请选择断言方式。
+    : FOR    ${i}    IN    @{result}
+    \    Run Keyword If    '@{result}[0]' == '0'    Fail    @{result}[1]
+    \    Exit For Loop
+    [Teardown]    log    ********对比响应数据结束********\n
+
+获取JSON数据值
+    [Arguments]    ${json_data}    ${target}
+    @{result}    Get Json Value    ${json_data}    ${target}
+    Run Keyword If    '@{result}[0]' == '0'    Fail    获取数据为空
+    [Return]    @{result}[1]
+
+参数替换
+    [Arguments]    ${data_body}    ${parameter}
+    log    ********开始替换参数********\n
+    ${result}    Body Data Replace    ${data_body}    ${parameter}
+    log    ********替换参数结束********\n
+    [Return]    ${result}
+
+执行SQL
+    [Arguments]    ${dbname}    ${sql}    #dbname 数据用户名，sql 是数据库语句
+    [Timeout]    10 seconds    # 超时时间
+    Change Current Dbconnection    &{db_basic_connet}[${dbname}]    #切换当前的用户链接
+    ${sql_type}    Get Sql Type    ${sql}    #获取sql的操作类型
+    @{sql_result}    Run Keyword If    '${sql_type}' == 'query_type'    Query    ${sql}
+    ...    ELSE IF    '${sql_type}' == 'modify_type'    Execute Sql String    ${sql}
+    Run Keyword If    '${sql_type}' == 'modify_type'    Return From Keyword    #如果修改数据库数据的操作直接退出
+    @{queryResults}    Run Keyword If    '${sql_type}' == 'query_type'    Description    ${sql}    #表所有列的属性
+    ${table_len}    Run Keyword If    '${sql_type}' == 'query_type'    get length    ${sql_result}    #查出的数据总条数
+    Run Keyword If    '${sql_type}' == 'query_type' and \ ${table_len} ==0    fail    ${sql} 没有查询到相关数据
+    @{all_data}    Run Keyword If    '${sql_type}' == 'query_type'    Create List    @{sql_result}    @{queryResults}    #将查询结果和表结构信息合并
+    ${all_result}    Run Keyword If    '${sql_type}' == 'query_type'    basic_data_combination    ${table_len}    ${sql}    @{all_data}
+    ...    #将结果与表的列名保存为字典类型
+    [Return]    ${all_result}
+
+操作数据库
+    [Arguments]    ${dbname_and_sql}
+    ${loop_sum}    Get Loop Sum Or Loop Value    sum    ${dbname_and_sql}    #获取需要循环的次数
+    ${all_result}    Set Variable    {}
+    : FOR    ${num}    IN RANGE    ${loop_sum}
+    \    @{result}    Get Loop Sum Or Loop Value    content    ${dbname_and_sql}    ${num}    #获取数据库用户名和sql
+    \    ${result}    执行SQL    @{result}[0]    @{result}[1]    #执行sql
+    \    ${all_result}    Save Key Respond Data    ${result}    ${all_result}    #合并结果
+    [Return]    ${all_result}
+
+请求接口
+    [Arguments]    @{test_case_data}
+    Run Keyword If    '@{test_case_data}[26]'=='0'    Return From Keyword    用例标志不生效,用例直接pass
+    Run Keyword If    '@{test_case_data}[25]' !=''    单接口测试    @{test_case_data}[25]
+    log    ********开始执行初始化脚本********\n
+    Run Keyword If    '@{test_case_data}[17]' =='1'    操作数据库    @{test_case_data}[18]    #执行初始化数据脚本
+    log    ********执行初始化脚本结束********\n
+    ${db_basic_data}    Run Keyword If    '@{test_case_data}[7]' =='2'    操作数据库    @{test_case_data}[9]    #查询请求数据sql
+    ${merge_data}    Run Keyword If    '@{test_case_data}[7]' =='2'    Save Key Respond Data    ${db_basic_data}    ${global_cache}
+    ...    ELSE IF    '@{test_case_data}[7]' =='1'    Save Key Respond Data    @{test_case_data}[9]    ${global_cache}
+    ${clear_text_body}    Run Keyword If    '@{test_case_data}[7]' =='2' or '@{test_case_data}[7]' =='1'    参数替换    @{test_case_data}[8]    ${merge_data}
+    ...    ELSE    参数替换    @{test_case_data}[8]    @{test_case_data}[9]
+    ${encryption_data}    Run Keyword If    '''@{test_case_data}[16]''' !=''    数据加密或解密    @{test_case_data}[16]    ${clear_text_body}    ${merge_data}
+    ...    request_body    #加密请求数据
+    ${merge_data}    Save Key Respond Data    ${encryption_data}    ${merge_data}    \    #将加密后的数据与全局缓存合并
+    ${body}    Run Keyword If    '''@{test_case_data}[16]''' !=''    Replace Json Data    ${clear_text_body}    ${merge_data}
+    ...    ELSE    Replace Json Data    ${clear_text_body}    {}    #加密后的数据替换到请求体里
+    ${response_data}    HTTP请求    ${host_name}    @{test_case_data}[1]    @{test_case_data}[4]    @{test_case_data}[5]    ${body}
+    分析响应结果    ${response_data}
+    Run Keyword If    '@{test_case_data}[11]' !=''    sleep    @{test_case_data}[11]
+    ${decode_data}    Run Keyword If    '''@{test_case_data}[16]''' !=''    数据加密或解密    @{test_case_data}[16]    ${response_data.content}    ${merge_data}
+    ...    response_body    #解密响应数据
+    ${merge_data}    Save Key Respond Data    ${decode_data}    ${merge_data}    \    #将加密后的数据与全局缓存合并
+    ${merge_decode_data}    Run Keyword If    '@{test_case_data}[15]' != ''    Save Key Respond Data    ${response_data.content}    ${merge_data}    #将响应和加密后的数据合并
+    ${important_value}    Run Keyword If    '@{test_case_data}[15]' != ''    Save Key Respond Data    ${merge_decode_data}    ${global_cache}    @{test_case_data}[15]
+    ...    ELSE    Save Key Respond Data    \    ${global_cache}
+    Set Global Variable    ${global_cache}    ${important_value}
+    ${db_basic_data}    Run Keyword If    '@{test_case_data}[12]' =='2'    操作数据库    @{test_case_data}[14]
+    ${merge_data}    Run Keyword If    '@{test_case_data}[12]' =='2'    Save Key Respond Data    ${db_basic_data}    ${global_cache}
+    ...    ELSE IF    '@{test_case_data}[12]' =='1'    Save Key Respond Data    @{test_case_data}[14]    ${global_cache}
+    ${expect_body}    Run Keyword If    '@{test_case_data}[12]' =='2'    参数替换    @{test_case_data}[13]    ${merge_data}
+    ...    ELSE IF    '@{test_case_data}[12]' =='1'    参数替换    @{test_case_data}[13]    @{test_case_data}[14]
+    ...    ELSE    参数替换    @{test_case_data}[13]    @{test_case_data}[14]
+    响应数据分析    @{test_case_data}[10]    ${response_data.content}    ${expect_body}    #响应数据对比
+    ${db_basic_data}    Run Keyword If    '@{test_case_data}[21]' =='1'    操作数据库    @{test_case_data}[24]
+    ${expect_db_data}    Run Keyword If    '@{test_case_data}[21]' =='1'    参数替换    @{test_case_data}[23]    ${db_basic_data}
+    Run Keyword If    '@{test_case_data}[21]' =='1'    响应数据分析    Contain    @{test_case_data}[22]    ${expect_db_data}    #数据库数据对比
+    Comment    Run Keyword If    '@{test_case_data}[19]' =='1'    操作数据库    @{test_case_data}[20]    #还原数据
+    [Teardown]    数据还原    @{test_case_data}[19]    @{test_case_data}[20]
+
+单接口测试
+    [Arguments]    ${test_case_id}
+    @{test_case_data}    读取测试用例    ${test_case_id}
+    请求接口    @{test_case_data}
+
+连接数据库初始化
+    [Arguments]    ${connection_parameters}
+    ${sum}    Get Db Configuration    sum    ${connection_parameters}
+    : FOR    ${orderid}    IN RANGE    ${sum}
+    \    @{result}    Get Db Configuration    get_values    ${connection_parameters}    ${orderid}
+    \    Connect To Database Using Custom Params    @{result}[0]    @{result}[2]    #连接数据库
+    \    ${connect_object}    Get Current Dbconnection    #获取数据库连接对象
+    \    &{user_object}    Create Dictionary    @{result}[1]=${connect_object}    &{db_basic_connet}    #保存数据库连接对象
+    \    Set Global Variable    &{db_basic_connet}    &{user_object}
+
+功能测试
+    [Arguments]    ${test_case_id}    @{function_case_id}    # 测试用例序号和功能组id
+    @{funtion_data}    Get Test Case Data    ${test_case_table}    data    ${test_case_id}
+    Run Keyword If    '@{funtion_data}[13]' !=''    功能预执行    @{funtion_data}[13]    #data表中是否需要预执行用例
+    ${length}    Get Length    ${function_case_id}
+    : FOR    ${num}    IN    @{function_case_id}
+    \    @{funtion}    Get Function Data    ${test_case_table}    function    ${num}
+    \    Run Keyword If    '@{funtion}[14]' =='0'    Continue For Loop    #功能表的接口是否失效
+    \    @{all_data}    Create List    @{function_case_id}    @{funtion}    @{funtion_data}
+    \    @{test_case}    Combined Case    ${length}    @{all_data}    #组合请求数据
+    \    ${end_mark}    Get Length    @{test_case}[13]    #如果下个接口的响应数据为空，则认为流程结束
+    \    Run Keyword If    ${end_mark} ==0    Exit For Loop
+    \    请求接口    @{test_case}
+
+功能预执行
+    [Arguments]    ${case_id}    # 用例编号
+    @{function_data}    Get Test Case Data    ${test_case_table}    data    ${case_id}
+    @{function_all_case_id}    Get Function All Id    ${test_case_table}    @{function_data}[1]
+    功能测试    @{function_data}[0]    @{function_all_case_id}
+
+数据加密或解密
+    [Arguments]    ${key}    ${data}    ${buffer}    ${data_type}    # key代表加密参数 \ \ data代表需要加密的数据
+    @{encryption_type}    Get Json Value    ${key}    mode    #获取加密类型（加密或解密）
+    ${length}    Get Length    ${encryption_type}
+    Run Keyword If    '${length}'=='0'    Return From Keyword    ${data}    #如果没有加密类型则返回加密前的数据
+    ${encryption_data}    Run Keyword If    ('@{encryption_type}[1]' == 'encode' and '${data_type}' =='request_body') or ('@{encryption_type}[1]' == 'decode' and '${data_type}' =='response_body')    Encryption Or Decryption    ${key}    ${data}    ${buffer}
+    ...    #数据进行加密（此处有问题，同时有加密或解密的情况下）
+    [Return]    ${encryption_data}
+
+获取API
+    [Arguments]    ${host}    ${uri}
+    @{result}    Get Api And Uri    ${host}    ${uri}    #获取新的主机地址和uri
+    Run Keyword If    '@{result}[0]' in @{all_host_api}    Return From Keyword    @{result}[0]    @{result}[1]    #如果存在则返回
+    Create Session    @{result}[0]    @{result}[0]    #以主机名创建session
+    Append To List    ${all_host_api}    @{result}[0]    #保存已创建的对象
+    log    创建新session，主机地址:@{result}[0]
+    [Return]    @{result}[0]    @{result}[1]    # 主机地址|uri地址
+
+数据还原
+    [Arguments]    @{reduction_info}
+    log    ********开始执行还原脚本********\n
+    Run Keyword If    '@{reduction_info}[0]' =='1'    操作数据库    @{reduction_info}[1]    #还原数据
+    log    ********执行还原脚本结束********\n
