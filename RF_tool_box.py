@@ -39,14 +39,17 @@ function_case = '''${function_case_name}
 
 class robot_tool_box():
     # 打开表格
-    def __init__(self):
+    def __init__(self, current_path = ''):
         self.work_table = None
         self.interface_all_mered_calls = None     # 单接口测试
         self.function_all_mered_calls = None    # 功能测试组
         self.function_data_all_mered_calls = None  # 功能测试用例
         self.default_all_mered_calls = None        # 默认时使用
         self.all_test_case_sum = 0
-        self.current_path = os.getcwd()
+        if current_path == '':
+            self.current_path = os.getcwd()
+        else:
+            self.current_path = current_path
 
     def open_table(self, table_path):
         ex = xlrd.open_workbook(table_path)
@@ -369,19 +372,24 @@ if __name__ == '__main__':
     5.运行模式序号：1   功能：校验测试用例json数据格式是否正确；
       运行模式序号：2   功能：生成自动化测试用例。
 '''
-    print (toast)
-    run_model = raw_input('请输入运行模式的序号：')
+    if len (sys.argv) >1:
+        current_path = sys.argv[1]
+        run_model = '2'
+        box = robot_tool_box(current_path)
+    else:
+        print (toast)
+        run_model = raw_input('请输入运行模式的序号：')
+        current_path = os.getcwd()
+        box = robot_tool_box()
     ignore =''                    # 忽略的行号和列号  常误报的列号可以设置此参数
     case_model = 'interface'      # 根据实际情况来修改  如果是接口测试的请填写 interface， 如果 功能测试的 则填写function
     need_save_file_name = '.idea;__init__.txt;RF_tool_box.py;RF_tool_box_3.py;AutomaticTestResources.txt;function.xlsx;~$function.xlsx;interface.xlsx;~$interface.xlsx'
-    current_path = os.getcwd()
     interface_test_case_path = ''
     function_test_case_path = ''
     if case_model == 'interface':
         interface_test_case_path = os.path.join(current_path, 'interface.xlsx')   # 接口测试用例
     elif case_model == 'function':
         function_test_case_path = os.path.join(current_path, 'function.xlsx')     # 功能测试用例
-    box = robot_tool_box()
     if function_test_case_path != '':
         print ('当前路径: %s   测试用例文件路径： %s' %(current_path, function_test_case_path))
         if run_model == '1':
