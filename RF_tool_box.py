@@ -311,10 +311,10 @@ class robot_tool_box():
                     current_file.close()
                     print('生成:%d 份文件，共：%d 条测试用例' % (interface_sum, self.all_test_case_sum))
                     break
+                if test_case_data[26] in('0', 0):
+                    test_case_id += 1
+                    continue
                 if interface_name != test_case_data[2] or interface_uri !=test_case_data[1]:
-                    if test_case_data[26] in('0', 0):
-                        test_case_id += 1
-                        continue
                     interface_uri = test_case_data[1]
                     interface_name = test_case_data[2]
                     interface_sum += 1
@@ -341,10 +341,10 @@ class robot_tool_box():
                     current_file.close()
                     print('生成:%d 份文件，共：%d 条测试用例' % (function_sum, self.all_test_case_sum))
                     break
+                if test_case_data[12] in('0', 0):
+                    test_case_id += 1
+                    continue
                 if function_name != test_case_data[1]:
-                    if test_case_data[12] in('0', 0):
-                        test_case_id += 1
-                        continue
                     function_case_all_id = self.get_function_all_id(test_case_data[1])
                     if len(function_case_all_id) !=0:
                         function_name = test_case_data[1]
