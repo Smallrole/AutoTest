@@ -89,6 +89,8 @@ class JsonDataHandle(object):
                 elif kb in Reference_dict and Reference_dict[kb] != vb:
                     logger.debug('匹对失败。返回key: %s 值:%s  参考Key：%s  值：%s' % (kb, vb, kb ,Reference_dict[kb]))
                     return '0', 'Values are not equal! Real Key: ' + str(kb) + ' Value: ' + str(vb) + '  Expect Key: ' + str(kb) + ' Value: ' + str(Reference_dict[kb])    # 返回失败状态0 返回参数 参考数
+                elif Reference_dict[kb] == vb:
+                    continue
                 else:
                     return '0', 'unknown error'
             return '1', None   # 返回成功
@@ -158,6 +160,8 @@ class JsonDataHandle(object):
                 elif key in RealData and ReferenceData[key] != value:               # 普通数据判断
                     logger.info('实返回数据：%s:%s 期望返回数据：%s:%s' % (key, value, key, ReferenceData[key]))
                     return '0', 'Values are not equal! Real key: ' + str(key) + ' value: '+ str(value) + '   Reference key: ' + str(key) + ' value: ' + str(ReferenceData[key])
+                elif ReferenceData[key] == value:
+                    continue
                 else:
                     return '0', 'unknown error'
             else:                            # key不在返回数据里
