@@ -52,6 +52,8 @@ class JsonDataHandle(object):
                 elif single_Expect_data == single_Real_data:
                     logger.debug('匹对成功退出当次循环')
                     continue
+                else:
+                    return '0', 'unknown error'
             return '1', None # 数据正确
         except KeyError, e:
             logger.error('发生异常！！！错误信息%s' % e)
@@ -87,6 +89,8 @@ class JsonDataHandle(object):
                 elif kb in Reference_dict and Reference_dict[kb] != vb:
                     logger.debug('匹对失败。返回key: %s 值:%s  参考Key：%s  值：%s' % (kb, vb, kb ,Reference_dict[kb]))
                     return '0', 'Values are not equal! Real Key: ' + str(kb) + ' Value: ' + str(vb) + '  Expect Key: ' + str(kb) + ' Value: ' + str(Reference_dict[kb])    # 返回失败状态0 返回参数 参考数
+                else:
+                    return '0', 'unknown error'
             return '1', None   # 返回成功
         except KeyError, e:
             logger.error('错误信息%s' % e)
@@ -154,8 +158,8 @@ class JsonDataHandle(object):
                 elif key in RealData and ReferenceData[key] != value:               # 普通数据判断
                     logger.info('实返回数据：%s:%s 期望返回数据：%s:%s' % (key, value, key, ReferenceData[key]))
                     return '0', 'Values are not equal! Real key: ' + str(key) + ' value: '+ str(value) + '   Reference key: ' + str(key) + ' value: ' + str(ReferenceData[key])
-                logger.debug('普通类型判断 返回数据：KEY:%s  VALUE:%s   参考数据：KEY:%s  VALUE:%s'
-                              % (key, str(value), key, ReferenceData[key]))
+                else:
+                    return '0', 'unknown error'
             else:                            # key不在返回数据里
                 logger.info('在响应数据里找不到该 %s Key' %key)
                 return '0', 'Key Name: '+ str(key) + '  in Reference data NoFound '      # 返回失败原因
