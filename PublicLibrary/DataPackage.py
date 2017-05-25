@@ -84,12 +84,12 @@ class data_package():
             table_all_lines_name_and_type[table_name] = table_name_type
         print 'table_all_lines_name_and_type:',table_all_lines_name_and_type
         return_data = {}
+        i=0
         for basic_data_one in all_data[0:1]:    # 只取一行的数据
             for basic_data in basic_data_one:
                 logger.debug('basic_data:%s' % basic_data)
-                key_index = basic_data_one.index(basic_data)
-                logger.debug('key_index:%d' % key_index)
-                return_data[content[key_index]] = basic_data
+                return_data[content[i]] = basic_data
+                i+=1
         return str(return_data)
 
     def get_sql_type(self, sql_statements):
@@ -107,4 +107,9 @@ class data_package():
 
 
 if __name__ == '__main__':
+    a='1'
+    b="""select t.user_login from tbl_mcht_user t where t.mcht_no ='015440395007341' and t.user_status='0' and t.user_primary='1'"""
+    c=[(b'13444444457',),(b'USER_LOGIN','cx_Oracle.STRING', 50, 50, 0, 0, 1)]
+    test=data_package()
+    print test.basic_data_combination(a,b,*c)
     pass
