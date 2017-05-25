@@ -159,8 +159,7 @@ HTTP请求
     ${db_basic_data}    Run Keyword If    '@{test_case_data}[12]' =='2'    操作数据库    @{test_case_data}[14]
     ${merge_data}    Run Keyword If    '@{test_case_data}[12]' =='2'    Save Key Respond Data    ${db_basic_data}    ${global_cache}
     ...    ELSE IF    '@{test_case_data}[12]' =='1'    Save Key Respond Data    @{test_case_data}[14]    ${global_cache}
-    ${expect_body}    Run Keyword If    '@{test_case_data}[12]' =='2'    参数替换    @{test_case_data}[13]    ${merge_data}
-    ...    ELSE IF    '@{test_case_data}[12]' =='1'    参数替换    @{test_case_data}[13]    @{test_case_data}[14]
+    ${expect_body}    Run Keyword If    '@{test_case_data}[12]' =='2' or '@{test_case_data}[12]' =='1'     参数替换    @{test_case_data}[13]    ${merge_data}
     ...    ELSE    参数替换    @{test_case_data}[13]    @{test_case_data}[14]
     响应数据分析    @{test_case_data}[10]    ${response_data.content}    ${expect_body}    #响应数据对比
     ${db_basic_data}    Run Keyword If    '@{test_case_data}[21]' =='1'    操作数据库    @{test_case_data}[24]
