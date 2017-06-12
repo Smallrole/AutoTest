@@ -4,6 +4,7 @@ Library           RequestsLibrary
 Library           DatabaseLibrary
 Library           Collections
 Library           OperatingSystem
+Library           String
 
 *** Variables ***
 
@@ -132,7 +133,7 @@ HTTP请求
 请求接口
     [Arguments]    @{test_case_data}
     Run Keyword If    '@{test_case_data}[26]'=='0'    Return From Keyword    用例标志不生效,用例直接pass
-    Run Keyword If    '@{test_case_data}[25]' !=''    单接口测试    @{test_case_data}[25]
+    Run Keyword If    '@{test_case_data}[25]' !=''    预执行接口    @{test_case_data}[25]
     log    ********开始执行初始化脚本********\n
     Run Keyword If    '@{test_case_data}[17]' =='1'    操作数据库    @{test_case_data}[18]    #执行初始化数据脚本
     log    ********执行初始化脚本结束********\n
@@ -164,7 +165,7 @@ HTTP请求
     响应数据分析    @{test_case_data}[10]    ${response_data.content}    ${expect_body}    #响应数据对比
     ${db_basic_data}    Run Keyword If    '@{test_case_data}[21]' =='1'    操作数据库    @{test_case_data}[24]
     ${expect_db_data}    Run Keyword If    '@{test_case_data}[21]' =='1'    参数替换    @{test_case_data}[23]    ${db_basic_data}
-    Run Keyword If    '@{test_case_data}[21]' =='1'    响应数据分析    Contain    @{test_case_data}[22]    ${expect_db_data}    #数据库数据对比
+    Run Keyword If    '@{test_case_data}[21]' =='1'    响应数据分析    Contain    ${expect_db_data}    @{test_case_data}[22]    #数据库数据对比
     Comment    Run Keyword If    '@{test_case_data}[19]' =='1'    操作数据库    @{test_case_data}[20]    #还原数据
     [Teardown]    数据还原    @{test_case_data}[19]    @{test_case_data}[20]
 
@@ -226,3 +227,10 @@ HTTP请求
     log    ********开始执行还原脚本********\n
     Run Keyword If    '@{reduction_info}[0]' =='1'    操作数据库    @{reduction_info}[1]    #还原数据
     log    ********执行还原脚本结束********\n
+
+预执行接口
+    [Arguments]    ${case_id}
+    ${all_case_id}    Split String    ${case_id}    ;
+    :FOR    ${test_case_id}    IN    @{all_case_id}
+    \    @{test_case_data}    读取测试用例    ${test_case_id}
+    \    请求接口    @{test_case_data}
